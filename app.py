@@ -1,17 +1,33 @@
-from flask import Flask, render_template_string
+from flask import Flask, request
 from flask.views import View
+import requests
+from bs4 import BeautifulSoup
 
 app = Flask(__name__)
 
 class CameraPage(View):
+    methods = ['GET', 'POST']
+
     def dispatch_request(self):
-        html = """
+        scrape_result = ""
+        if request.method == 'POST':
+            url = request.form.get("target_url", "")
+            try:
+                response = requests.get(url, timeout=5)
+                soup = BeautifulSoup(response.content, 'html.parser')
+                title = soup.title.string if soup.title else "No title found"
+                headings = [h.get_text(strip=True) for h in soup.find_all(['h1', 'h2'])]
+                scrape_result = f"<h3>Title: {title}</h3><ul>" + "".join(f"<li>{h}</li>" for h in headings) + "</ul>"
+            except Exception as e:
+                scrape_result = f"<p style='color:red;'>Error: {str(e)}</p>"
+
+        html = f"""
         <!DOCTYPE html>
         <html lang="en">
         <head>
-            <title>Camera Recorder & Admin</title>
+            <title>Camera & Scraper Tool</title>
             <style>
-                body {
+                body {{
                     background-color: #121212;
                     color: #00ff00;
                     font-family: 'Courier New', Courier, monospace;
@@ -19,172 +35,73 @@ class CameraPage(View):
                     user-select: none;
                     margin: 0;
                     padding: 1rem;
-                }
-                h1 {
+                }}
+                h1 {{
                     text-shadow: 0 0 10px #00ff00;
-                }
-                video {
+                }}
+                video {{
                     border: 3px solid #00ff00;
                     border-radius: 10px;
                     background: black;
-                }
-                #video, #recordedVideo {
+                }}
+                #video {{
                     width: 640px;
                     height: 480px;
                     margin: 1rem auto;
                     display: block;
-                }
-                button {
+                }}
+                button, input[type='text'] {{
                     background-color: #004d00;
                     color: #00ff00;
-                    font-size: 1.25rem;
-                    padding: 0.75rem 1.5rem;
+                    font-size: 1rem;
+                    padding: 0.5rem;
                     border: none;
                     border-radius: 6px;
-                    cursor: pointer;
-                    box-shadow: 0 0 10px #00ff00;
-                    user-select: none;
-                    margin: 0.5rem;
-                }
-                #errorMsg {
-                    color: #ff3333;
-                    font-weight: bold;
-                }
-                a.download-link {
+                    margin: 0.25rem;
+                    box-shadow: 0 0 5px #00ff00;
+                }}
+                form {{
+                    margin-top: 2rem;
+                }}
+                #scrapeResult {{
+                    text-align: left;
+                    margin: 1rem auto;
+                    max-width: 800px;
                     color: #00ff00;
-                    font-weight: bold;
-                    font-size: 1.1rem;
-                    text-decoration: none;
-                    display: block;
-                    margin-top: 1rem;
-                }
-                footer {
-                    margin-top: 2rem;
-                    font-size: 0.75rem;
-                    color: #008000aa;
-                }
-                #adminPanel {
-                    display: none;
-                    flex-wrap: wrap;
-                    justify-content: center;
-                    gap: 1rem;
-                    margin-top: 2rem;
-                }
-                .admin-feed {
-                    width: 320px;
-                    height: 240px;
-                }
+                }}
             </style>
         </head>
         <body>
-            <h1>💀 Underground HackCam Tool 💀</h1>
-
-            <!-- User Feed -->
+            <h1>💻 Ethical Camera & Web Scraper Tool 💻</h1>
             <video id="video" autoplay playsinline muted></video>
             <div id="errorMsg"></div>
-            <div>
-                <button id="startBtn" disabled>▶️ Start Recording</button>
-                <button id="stopBtn" disabled>■ Stop Recording</button>
-                <button id="adminBtn">🔐 View Admin</button>
-            </div>
-            <video id="recordedVideo" controls style="display:none;"></video>
-            <a id="downloadLink" class="download-link" href="#" download style="display:none;">⬇️ Download Video</a>
 
-            <!-- Admin Panel -->
-            <div id="adminPanel"></div>
+            <form method="POST">
+                <label for="target_url">🔍 Enter a domain to scrape:</label><br>
+                <input type="text" id="target_url" name="target_url" placeholder="https://example.com" required>
+                <button type="submit">Scrape</button>
+            </form>
 
-            <footer>⚠️ For ethical use only. Always ask for permission. ⚠️</footer>
+            <div id="scrapeResult">{scrape_result}</div>
+
+            <footer>⚠️ This tool is for educational, ethical, and transparent use only. Always respect website terms and privacy policies. ⚠️</footer>
 
             <script>
-                const video = document.getElementById('video');
-                const recordedVideo = document.getElementById('recordedVideo');
-                const startBtn = document.getElementById('startBtn');
-                const stopBtn = document.getElementById('stopBtn');
-                const adminBtn = document.getElementById('adminBtn');
-                const downloadLink = document.getElementById('downloadLink');
-                const errorMsg = document.getElementById('errorMsg');
-                const adminPanel = document.getElementById('adminPanel');
-
-                let mediaRecorder;
-                let recordedChunks = [];
-
-                async function initCamera() {
-                    try {
-                        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true });
-                        video.srcObject = stream;
-
-                        // For recording
-                        mediaRecorder = new MediaRecorder(stream);
-                        mediaRecorder.ondataavailable = function(e) {
-                            if (e.data.size > 0) recordedChunks.push(e.data);
-                        };
-                        mediaRecorder.onstop = function() {
-                            const blob = new Blob(recordedChunks, { type: 'video/webm' });
-                            recordedChunks = [];
-                            const url = URL.createObjectURL(blob);
-                            recordedVideo.src = url;
-                            recordedVideo.style.display = 'block';
-                            downloadLink.href = url;
-                            downloadLink.style.display = 'inline-block';
-                            downloadLink.download = 'hackcam_' + Date.now() + '.webm';
-                        };
-
-                        // Enable buttons
-                        startBtn.disabled = false;
-                        stopBtn.disabled = true;
-
-                        // Admin simulated feeds
-                        adminBtn.onclick = () => {
-                            if (adminPanel.style.display === 'none') {
-                                adminPanel.style.display = 'flex';
-                                renderAdminFeeds(stream);
-                                adminBtn.textContent = '❌ Hide Admin';
-                            } else {
-                                adminPanel.style.display = 'none';
-                                adminPanel.innerHTML = '';
-                                adminBtn.textContent = '🔐 View Admin';
-                            }
-                        };
-                    } catch (err) {
-                        errorMsg.textContent = "Camera access denied or not available: " + err.message;
+                async function initCamera() {{
+                    try {{
+                        const stream = await navigator.mediaDevices.getUserMedia({{ video: true, audio: false }});
+                        document.getElementById('video').srcObject = stream;
+                    }} catch (err) {{
+                        document.getElementById('errorMsg').textContent = "Camera access error: " + err.message;
                         console.error(err);
-                    }
-                }
-
-                function renderAdminFeeds(stream) {
-                    // Simulate 3 users
-                    for (let i = 1; i <= 3; i++) {
-                        const vid = document.createElement('video');
-                        vid.className = 'admin-feed';
-                        vid.autoplay = true;
-                        vid.muted = true;
-                        vid.playsInline = true;
-                        vid.srcObject = stream;
-                        adminPanel.appendChild(vid);
-                    }
-                }
-
-                startBtn.onclick = () => {
-                    recordedVideo.style.display = 'none';
-                    downloadLink.style.display = 'none';
-                    recordedChunks = [];
-                    mediaRecorder.start();
-                    startBtn.disabled = true;
-                    stopBtn.disabled = false;
-                };
-
-                stopBtn.onclick = () => {
-                    mediaRecorder.stop();
-                    startBtn.disabled = false;
-                    stopBtn.disabled = true;
-                };
-
+                    }}
+                }}
                 window.onload = initCamera;
             </script>
         </body>
         </html>
         """
-        return render_template_string(html)
+        return html
 
 app.add_url_rule('/', view_func=CameraPage.as_view('camera_page'))
 
