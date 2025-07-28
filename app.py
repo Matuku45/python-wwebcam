@@ -9,7 +9,7 @@ class CameraPage(View):
         <!DOCTYPE html>
         <html lang="en">
         <head>
-            <title>Camera Recorder Tool</title>
+            <title>Camera Recorder & Admin</title>
             <style>
                 body {
                     background-color: #121212;
@@ -23,12 +23,14 @@ class CameraPage(View):
                 h1 {
                     text-shadow: 0 0 10px #00ff00;
                 }
-                #video, #recordedVideo {
+                video {
                     border: 3px solid #00ff00;
                     border-radius: 10px;
+                    background: black;
+                }
+                #video, #recordedVideo {
                     width: 640px;
                     height: 480px;
-                    background: black;
                     margin: 1rem auto;
                     display: block;
                 }
@@ -43,12 +45,6 @@ class CameraPage(View):
                     box-shadow: 0 0 10px #00ff00;
                     user-select: none;
                     margin: 0.5rem;
-                }
-                button:disabled {
-                    background-color: #222;
-                    cursor: not-allowed;
-                    box-shadow: none;
-                    color: #555;
                 }
                 #errorMsg {
                     color: #ff3333;
@@ -67,18 +63,36 @@ class CameraPage(View):
                     font-size: 0.75rem;
                     color: #008000aa;
                 }
+                #adminPanel {
+                    display: none;
+                    flex-wrap: wrap;
+                    justify-content: center;
+                    gap: 1rem;
+                    margin-top: 2rem;
+                }
+                .admin-feed {
+                    width: 320px;
+                    height: 240px;
+                }
             </style>
         </head>
         <body>
             <h1>💀 Underground HackCam Tool 💀</h1>
+
+            <!-- User Feed -->
             <video id="video" autoplay playsinline muted></video>
             <div id="errorMsg"></div>
             <div>
                 <button id="startBtn" disabled>▶️ Start Recording</button>
                 <button id="stopBtn" disabled>■ Stop Recording</button>
+                <button id="adminBtn">🔐 View Admin</button>
             </div>
             <video id="recordedVideo" controls style="display:none;"></video>
             <a id="downloadLink" class="download-link" href="#" download style="display:none;">⬇️ Download Video</a>
+
+            <!-- Admin Panel -->
+            <div id="adminPanel"></div>
+
             <footer>⚠️ For ethical use only. Always ask for permission. ⚠️</footer>
 
             <script>
@@ -86,8 +100,10 @@ class CameraPage(View):
                 const recordedVideo = document.getElementById('recordedVideo');
                 const startBtn = document.getElementById('startBtn');
                 const stopBtn = document.getElementById('stopBtn');
+                const adminBtn = document.getElementById('adminBtn');
                 const downloadLink = document.getElementById('downloadLink');
                 const errorMsg = document.getElementById('errorMsg');
+                const adminPanel = document.getElementById('adminPanel');
 
                 let mediaRecorder;
                 let recordedChunks = [];
@@ -97,28 +113,54 @@ class CameraPage(View):
                         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true });
                         video.srcObject = stream;
 
+                        // For recording
                         mediaRecorder = new MediaRecorder(stream);
-
                         mediaRecorder.ondataavailable = function(e) {
                             if (e.data.size > 0) recordedChunks.push(e.data);
                         };
-
                         mediaRecorder.onstop = function() {
                             const blob = new Blob(recordedChunks, { type: 'video/webm' });
                             recordedChunks = [];
                             const url = URL.createObjectURL(blob);
                             recordedVideo.src = url;
                             recordedVideo.style.display = 'block';
-
                             downloadLink.href = url;
                             downloadLink.style.display = 'inline-block';
                             downloadLink.download = 'hackcam_' + Date.now() + '.webm';
                         };
 
+                        // Enable buttons
                         startBtn.disabled = false;
+                        stopBtn.disabled = true;
+
+                        // Admin simulated feeds
+                        adminBtn.onclick = () => {
+                            if (adminPanel.style.display === 'none') {
+                                adminPanel.style.display = 'flex';
+                                renderAdminFeeds(stream);
+                                adminBtn.textContent = '❌ Hide Admin';
+                            } else {
+                                adminPanel.style.display = 'none';
+                                adminPanel.innerHTML = '';
+                                adminBtn.textContent = '🔐 View Admin';
+                            }
+                        };
                     } catch (err) {
                         errorMsg.textContent = "Camera access denied or not available: " + err.message;
                         console.error(err);
+                    }
+                }
+
+                function renderAdminFeeds(stream) {
+                    // Simulate 3 users
+                    for (let i = 1; i <= 3; i++) {
+                        const vid = document.createElement('video');
+                        vid.className = 'admin-feed';
+                        vid.autoplay = true;
+                        vid.muted = true;
+                        vid.playsInline = true;
+                        vid.srcObject = stream;
+                        adminPanel.appendChild(vid);
                     }
                 }
 
@@ -148,4 +190,3 @@ app.add_url_rule('/', view_func=CameraPage.as_view('camera_page'))
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
-
